@@ -1,138 +1,125 @@
--- BHub Aimbot + ESP + Painel (Versão Mobile/Delta)
+-- BHUB - Aimbot + ESP + Painel (Delta Mobile)
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
--- ESP Simples e Leve
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-        local esp = Drawing.new("Text")
-        esp.Text = player.Name
-        esp.Size = 13
-        esp.Center = true
-        esp.Outline = true
-        esp.Color = Color3.fromRGB(255, 0, 0)
-        esp.Visible = true
-
-        game:GetService("RunService").RenderStepped:Connect(function()
-            if player.Character and player.Character:FindFirstChild("Head") then
-                local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(player.Character.Head.Position)
-                esp.Position = Vector2.new(pos.X, pos.Y)
-                esp.Visible = onScreen
-            else
-                esp.Visible = false
-            end
-        end)
-    end
-end
-
--- Aimbot Inteligente
-getgenv().AimbotSettings = {
-    AimPart = "Head",
+-- CONFIGURAÇÕES
+local Config = {
+    Aimbot = true,
+    AimPart = "Head", -- Head / HumanoidRootPart
+    ESP = true,
     FOV = 100,
-    TeamCheck = true,
-    WallCheck = true,
-    Smoothness = 0.08
+    FOVColor = Color3.fromRGB(255, 255, 255),
+    ESPColor = Color3.fromRGB(255, 0, 0),
+    ShowFOVCircle = true,
 }
 
-local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local FOV = Drawing.new("Circle")
-FOV.Color = Color3.fromRGB(0, 255, 0)
-FOV.Thickness = 1
-FOV.Radius = getgenv().AimbotSettings.FOV
-FOV.NumSides = 60
-FOV.Transparency = 0.5
-FOV.Visible = true
-FOV.Filled = false
+-- BOTÃO ABRIR/FECHAR PAINEL
+local abrirFechar = Instance.new("TextButton")
+abrirFechar.Size = UDim2.new(0, 70, 0, 30)
+abrirFechar.Position = UDim2.new(0, 10, 0, 10)
+abrirFechar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+abrirFechar.TextColor3 = Color3.new(1, 1, 1)
+abrirFechar.Text = "Painel"
+abrirFechar.Parent = game.CoreGui
 
-function GetClosestPlayer()
-    local closest = nil
-    local shortest = math.huge
+-- CRIAR PAINEL
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 200, 0, 200)
+Frame.Position = UDim2.new(0, 100, 0, 100)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Visible = false
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(getgenv().AimbotSettings.AimPart) then
-            if getgenv().AimbotSettings.TeamCheck and player.Team == LocalPlayer.Team then continue end
-            local part = player.Character[getgenv().AimbotSettings.AimPart]
-            local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
-            if not onScreen then continue end
-            local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-            if dist < getgenv().AimbotSettings.FOV and dist < shortest then
-                shortest = dist
-                closest = part
+local function criarToggle(nome, callback)
+    local toggle = Instance.new("TextButton", Frame)
+    toggle.Size = UDim2.new(1, 0, 0, 30)
+    toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    toggle.TextColor3 = Color3.new(1, 1, 1)
+    toggle.Text = nome
+    toggle.MouseButton1Click:Connect(function()
+        callback()
+    end)
+end
+
+-- TOGGLES
+criarToggle("Ativar/Desativar Aimbot", function()
+    Config.Aimbot = not Config.Aimbot
+end)
+
+criarToggle("Ativar/Desativar ESP", function()
+    Config.ESP = not Config.ESP
+end)
+
+-- FOV CIRCLE
+local circle = Drawing.new("Circle")
+circle.Color = Config.FOVColor
+circle.Radius = Config.FOV
+circle.Thickness = 1
+circle.Transparency = 0.4
+circle.Visible = Config.ShowFOVCircle
+circle.Filled = false
+
+RunService.RenderStepped:Connect(function()
+    circle.Position = Vector2.new(Mouse.X, Mouse.Y)
+    circle.Visible = Config.ShowFOVCircle and Config.Aimbot
+end)
+
+-- AIMBOT
+function getClosest()
+    local closest, dist = nil, Config.FOV
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Config.AimPart) then
+            local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(p.Character[Config.AimPart].Position)
+            if onScreen then
+                local mag = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
+                if mag < dist then
+                    dist = mag
+                    closest = p
+                end
             end
         end
     end
-
     return closest
 end
 
-local aiming = false
-UIS.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then -- mira quando segura botão direito
-        aiming = true
-    end
-end)
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        aiming = false
-    end
-end)
-
+-- TRAVA MIRA
 RunService.RenderStepped:Connect(function()
-    FOV.Position = Vector2.new(Mouse.X, Mouse.Y)
-    if aiming then
-        local target = GetClosestPlayer()
-        if target then
-            workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(
-                CFrame.new(workspace.CurrentCamera.CFrame.Position, target.Position),
-                getgenv().AimbotSettings.Smoothness
-            )
+    if Config.Aimbot and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local target = getClosest()
+        if target and target.Character then
+            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, target.Character[Config.AimPart].Position)
         end
     end
 end)
 
--- Painel simples: botão flutuante para abrir/fechar
-local GUI = Instance.new("ScreenGui", game.CoreGui)
-local Toggle = Instance.new("TextButton", GUI)
-Toggle.Text = "Abrir Painel"
-Toggle.Position = UDim2.new(0, 10, 0, 100)
-Toggle.Size = UDim2.new(0, 120, 0, 30)
-Toggle.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-Toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+-- ESP
+RunService.RenderStepped:Connect(function()
+    if not Config.ESP then return end
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local tag = Drawing.new("Text")
+            tag.Text = player.Name
+            tag.Size = 13
+            tag.Center = true
+            tag.Outline = true
+            tag.Color = Config.ESPColor
+            tag.Visible = true
 
-local Panel = Instance.new("Frame", GUI)
-Panel.Size = UDim2.new(0, 220, 0, 200)
-Panel.Position = UDim2.new(0, 10, 0, 140)
-Panel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-Panel.Visible = false
-
-Toggle.MouseButton1Click:Connect(function()
-    Panel.Visible = not Panel.Visible
+            local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(player.Character.Head.Position)
+            tag.Position = Vector2.new(pos.X, pos.Y - 20)
+            
+            delay(0.1, function()
+                tag:Remove()
+            end)
+        end
+    end
 end)
 
-local Titulo = Instance.new("TextLabel", Panel)
-Titulo.Text = "BHub Painel"
-Titulo.Size = UDim2.new(1, 0, 0, 30)
-Titulo.BackgroundTransparency = 1
-Titulo.TextColor3 = Color3.fromRGB(255, 255, 255)
-
--- Botão FOV+
-local MaisFOV = Instance.new("TextButton", Panel)
-MaisFOV.Position = UDim2.new(0, 10, 0, 50)
-MaisFOV.Size = UDim2.new(0, 90, 0, 30)
-MaisFOV.Text = "FOV +"
-MaisFOV.MouseButton1Click:Connect(function()
-    getgenv().AimbotSettings.FOV += 20
-    FOV.Radius = getgenv().AimbotSettings.FOV
-end)
-
--- Botão FOV-
-local MenosFOV = Instance.new("TextButton", Panel)
-MenosFOV.Position = UDim2.new(0, 120, 0, 50)
-MenosFOV.Size = UDim2.new(0, 90, 0, 30)
-MenosFOV.Text = "FOV -"
-MenosFOV.MouseButton1Click:Connect(function()
-    getgenv().AimbotSettings.FOV = math.max(20, getgenv().AimbotSettings.FOV - 20)
-    FOV.Radius = getgenv().AimbotSettings.FOV
+-- ABRIR/FECHAR PAINEL
+abrirFechar.MouseButton1Click:Connect(function()
+    Frame.Visible = not Frame.Visible
 end)
