@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/roberta8656-sketch/Aimbot-BHub/main/hub.lua"))()
